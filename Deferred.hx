@@ -11,6 +11,7 @@ typedef Deferred<T> = DeferredWithErrorType<T, Dynamic>;
 
 private typedef P<T, E> = PromiseWithErrorType<T, E>;
 
+private typedef Tuple<T, U> = { first : T, second : U };
 
 class PromiseWithErrorType<T, E> {
 	var state:DeferredState<T, E>;
@@ -28,6 +29,10 @@ class PromiseWithErrorType<T, E> {
 		doneQueue = [];
 		failQueue = [];
 		alwaysQueue = [];
+	}
+
+	function fixed():Bool {
+		return state!=Pending;
 	}
 
 	public function done(f : T -> Void) : P<T, E> {
@@ -59,7 +64,7 @@ class PromiseWithErrorType<T, E> {
 		return this;
 	}
 
-	public function then<U>(f : T -> P<U, E>):P<U, E> {
+	public function then<U>(f : T -> P<U, E>) : P<U, E> {
 		var returnDeferred = new DeferredWithErrorType<U, E>();
 
 		this.done(function(result)  {
@@ -71,6 +76,12 @@ class PromiseWithErrorType<T, E> {
 
 		return returnDeferred; 
 	}
+
+	public function and<U, E>(p : P<U, E>) : P<Tuple<T, U>, E> {
+		var d = new Deferred.DeferredWithErrorType<Tuple<T, U>, E>();
+		return d;
+	} 
+
 }
 
 class DeferredWithErrorType<T, E> extends PromiseWithErrorType<T, E> {
@@ -83,6 +94,9 @@ class DeferredWithErrorType<T, E> extends PromiseWithErrorType<T, E> {
 	}
 
 	function fix(s : DeferredState<T, E>) : Void {
+		if (fixed())
+			return;
+			
 		state = s;
 
 		switch (s) {
