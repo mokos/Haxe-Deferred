@@ -31,7 +31,7 @@ class PromiseWithErrorType<T, E> {
 		alwaysQueue = [];
 	}
 
-	function fixed():Bool {
+	function fixed() : Bool {
 		return state!=Pending;
 	}
 
@@ -69,18 +69,14 @@ class PromiseWithErrorType<T, E> {
 
 		this.done(function(result)  {
 			var innerPromise = f(result);
-			innerPromise.done(function(result2:U) returnDeferred.resolve(result2));
-			innerPromise.fail(function(error2) returnDeferred.reject(error2));
+			innerPromise
+				.done(function(res2) returnDeferred.resolve(res2))
+				.fail(function(err2) returnDeferred.reject(err2));
 		});
 		this.fail(function(error) returnDeferred.reject(error));
 
 		return returnDeferred; 
 	}
-
-	public function and<U, E>(p : P<U, E>) : P<Tuple<T, U>, E> {
-		var d = new Deferred.DeferredWithErrorType<Tuple<T, U>, E>();
-		return d;
-	} 
 
 }
 
@@ -96,7 +92,7 @@ class DeferredWithErrorType<T, E> extends PromiseWithErrorType<T, E> {
 	function fix(s : DeferredState<T, E>) : Void {
 		if (fixed())
 			return;
-			
+
 		state = s;
 
 		switch (s) {
