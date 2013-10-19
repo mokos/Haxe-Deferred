@@ -1,3 +1,4 @@
+package ;
 
 enum DeferredState<T, E> {
 	Pending;
@@ -10,8 +11,7 @@ typedef Deferred<T> = DeferredWithErrorType<T, Dynamic>;
 
 
 private typedef P<T, E> = PromiseWithErrorType<T, E>;
-
-private typedef Tuple<T, U> = { first : T, second : U };
+private typedef D<T, E> = DeferredWithErrorType<T, E>;
 
 class PromiseWithErrorType<T, E> {
 	var state:DeferredState<T, E>;
@@ -65,22 +65,31 @@ class PromiseWithErrorType<T, E> {
 	}
 
 	public function then<U>(f : T -> P<U, E>) : P<U, E> {
-		var returnDeferred = new DeferredWithErrorType<U, E>();
+		var returnDeferred = new D<U, E>();
 
 		this.done(function(result)  {
-			var innerPromise = f(result);
-			innerPromise
+			var thenPromise = f(result);
+			thenPromise
 				.done(function(res2) returnDeferred.resolve(res2))
 				.fail(function(err2) returnDeferred.reject(err2));
 		});
 		this.fail(function(error) returnDeferred.reject(error));
 
-		return returnDeferred; 
+		return returnDeferred.promise(); 
 	}
 
+	public static function immediate<U>(x : U) : Promise<U> {
+		var d = new Deferred<U>();
+		d.resolve(x);
+		return d.promise();
+	}
 }
 
 class DeferredWithErrorType<T, E> extends PromiseWithErrorType<T, E> {
+	public function promise() : PromiseWithErrorType<T, E> {
+		return this;
+	}
+
 	public function resolve(result : T) : Void {
 		fix(Resolved(result));
 	}
@@ -110,5 +119,51 @@ class DeferredWithErrorType<T, E> extends PromiseWithErrorType<T, E> {
 
 		resetQueue();
 	}
+ 
+	public static function when<A, B, C, D, E>(
+		 p1 : Promise<A>,
+		 p2 : Promise<B>,
+		?p3 : Promise<C>,
+		?p4 : Promise<D>,
+		?p5 : Promise<E>
+	)
+	{
+		var d = new Deferred<ReturnTuple<A,B,C,D,E>>();
+		var doneNum = 0;
+		var ps:Array<Promise<Dynamic>> = [p1, p2];
+		if (p3!=null) ps.push(p3);
+		if (p4!=null) ps.push(p4);
+		if (p5!=null) ps.push(p5);
+		var promiseNum = ps.length;
+
+		var r:Array<Dynamic> = [for (i in 0...promiseNum) null];
+
+		for (i in 0...ps.length) {
+			var p = ps[i];
+
+			p.done(function(result) {
+				r[i] = result;
+				if (++doneNum==promiseNum) {
+					switch (promiseNum) {
+					case 2: d.resolve(Ret2(r[0], r[1]));
+					case 3: d.resolve(Ret3(r[0], r[1], r[2]));
+					case 4: d.resolve(Ret4(r[0], r[1], r[2], r[3]));
+					case 5: d.resolve(Ret5(r[0], r[1], r[2], r[3], r[4]));
+					case _:
+					}
+				}
+			}).fail(function(e) {
+				d.reject(e);
+			});
+		}
+
+		return d.promise();
+	}
 }
 
+enum ReturnTuple<A,B,C,D,E> {
+	Ret2(a:A, b:B);
+	Ret3(a:A, b:B, c:C);
+	Ret4(a:A, b:B, c:C, d:D);
+	Ret5(a:A, b:B, c:C, d:D, e:E);
+}
