@@ -1,11 +1,16 @@
+
 enum DeferredState<T, E> {
 	Pending;
 	Resolved(result:T);
 	Rejected(error:E);
 }
 
+typedef Promise<T> = PromiseWithErrorType<T, Dynamic>;
+typedef Deferred<T> = DeferredWithErrorType<T, Dynamic>;
+
 
 private typedef P<T, E> = PromiseWithErrorType<T, E>;
+
 
 class PromiseWithErrorType<T, E> {
 	var state:DeferredState<T, E>;
@@ -53,6 +58,19 @@ class PromiseWithErrorType<T, E> {
 
 		return this;
 	}
+
+	public function then<U>(f : T -> P<U, E>):P<U, E> {
+		var returnDeferred = new DeferredWithErrorType<U, E>();
+
+		this.done(function(result)  {
+			var innerPromise = f(result);
+			innerPromise.done(function(result2:U) returnDeferred.resolve(result2));
+			innerPromise.fail(function(error2) returnDeferred.reject(error2));
+		});
+		this.fail(function(error) returnDeferred.reject(error));
+
+		return returnDeferred; 
+	}
 }
 
 class DeferredWithErrorType<T, E> extends PromiseWithErrorType<T, E> {
@@ -83,7 +101,4 @@ class DeferredWithErrorType<T, E> extends PromiseWithErrorType<T, E> {
 		resetQueue();
 	}
 }
-
-typedef Promise<T> = PromiseWithErrorType<T, Dynamic>;
-typedef Deferred<T> = DeferredWithErrorType<T, Dynamic>;
 
