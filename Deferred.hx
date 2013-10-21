@@ -11,16 +11,12 @@ enum DeferredState<T, E> {
 typedef Promise<T> = PromiseWithErrorType<T, Dynamic>;
 typedef Deferred<T> = DeferredWithErrorType<T, Dynamic>;
 
-
 private typedef P<T, E> = PromiseWithErrorType<T, E>;
 private typedef D<T, E> = DeferredWithErrorType<T, E>;
 
 class PromiseWithErrorType<T, E> {
 	var state:DeferredState<T, E>;
-
-	var doneQueue:Array<T -> Void>;
-	var failQueue:Array<E -> Void>;
-	var alwaysQueue:Array<Void -> Void>;
+	var taskQueue:Array<Void -> Void>;
 
 	public function new() {
 		state = Pending;
@@ -28,20 +24,28 @@ class PromiseWithErrorType<T, E> {
 	}
 
 	function resetQueue() {
-		doneQueue = [];
-		failQueue = [];
-		alwaysQueue = [];
+		taskQueue = [];
 	}
 
 	function fixed() : Bool {
 		return state!=Pending;
 	}
 
+	public function promise() : P<T, E> {
+		return this;
+	}
+
 	public function done(f : T -> Void) : P<T, E> {
 		switch (state) {
-		case Pending: doneQueue.push(f);
+		case Pending:
+			taskQueue.push(function() {
+				switch (state) {
+				case Resolved(result): f(result);
+				case _:
+				}
+			});
 		case Resolved(result): f(result);
-		case Rejected(_):
+		case _:
 		}
 
 		return this;
@@ -49,9 +53,15 @@ class PromiseWithErrorType<T, E> {
 
 	public function fail(f : E -> Void) : P<T, E> {
 		switch (state) {
-		case Pending: failQueue.push(f);
-		case Resolved(_): 
+		case Pending:
+			taskQueue.push(function() {
+				switch (state) {
+				case Rejected(error): f(error);
+				case _:
+				}
+			});
 		case Rejected(error): f(error);
+		case _:
 		}
 
 		return this;
@@ -59,7 +69,8 @@ class PromiseWithErrorType<T, E> {
 
 	public function always(f : Void -> Void) : P<T, E> {
 		switch (state) {
-		case Pending: alwaysQueue.push(f);
+		case Pending:
+			taskQueue.push(f);
 		case Resolved(_) | Rejected(_): f();
 		}
 
@@ -86,10 +97,6 @@ class PromiseWithErrorType<T, E> {
 }
 
 class DeferredWithErrorType<T, E> extends PromiseWithErrorType<T, E> {
-	public function promise() : P<T, E> {
-		return this;
-	}
-
 	public function resolve(result : T) : P<T, E> {
 		fix(Resolved(result));
 		return this;
@@ -106,17 +113,7 @@ class DeferredWithErrorType<T, E> extends PromiseWithErrorType<T, E> {
 
 		state = s;
 
-		switch (s) {
-		case Resolved(result):
-			for (f in doneQueue)
-				f(result);
-		case Rejected(error):
-			for (f in failQueue)
-				f(error);
-		case _:
-		}
-
-		for (f in alwaysQueue)
+		for (f in taskQueue)
 			f();
 
 		resetQueue();
