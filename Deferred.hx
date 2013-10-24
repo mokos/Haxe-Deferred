@@ -119,7 +119,7 @@ class DeferredWithErrorType<T, E> extends PromiseWithErrorType<T, E> {
 		resetQueue();
 	}
  
-	public static function when<A, B, C, D, E, Er>(
+	public static function when2<A, B, C, D, E, Er>(
 		 p1 : P<A, Er>,
 		 p2 : P<B, Er>,
 		?p3 : P<C, Er>,
@@ -156,7 +156,44 @@ class DeferredWithErrorType<T, E> extends PromiseWithErrorType<T, E> {
 		}
 
 		return d.promise();
+
 	}
+	public static function when<A, B, C, D, E, Er>(
+		 p1 : P<A, Er>,
+		 p2 : P<B, Er>,
+		?p3 : P<C, Er>,
+		?p4 : P<D, Er>,
+		?p5 : P<E, Er>
+	)
+	{
+		var d = new Deferred<ReturnStruct<A,B,C,D,E>>();
+		var promises:Array<P<Dynamic, Er>> = [p1, p2, p3, p4, p5];
+		promises = promises.filter(function(x) return x!=null);
+
+		// results
+		var r:Array<Dynamic> = [for (p in promises) null];
+
+		var doneNum = 0;
+		for (i in 0...promises.length) {
+			var p = promises[i];
+
+			p.done(function(result) {
+				r[i] = result;
+				if (++doneNum==promises.length) {
+					var ret : ReturnStruct<A,B,C,D,E> = {a:r[0], b:r[1], c:r[2], d:r[3], e:r[4]};
+					d.resolve(ret);
+				}
+			}).fail(function(e) {
+				d.reject(e);
+			});
+		}
+
+		return d.promise();
+	}
+}
+
+typedef ReturnStruct<A,B,C,D,E> = {
+	a:A, b:B, c:C, d:D, e:E
 }
 
 enum ReturnTuple<A,B,C,D,E> {
