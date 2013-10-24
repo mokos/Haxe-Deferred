@@ -16,7 +16,8 @@ private typedef D<T, E> = DeferredWithErrorType<T, E>;
 
 class PromiseWithErrorType<T, E> {
 	var state:DeferredState<T, E>;
-	var taskQueue:Array<Void -> Void>;
+	var doneQueue:Array<T -> Void>;
+	var failQueue:Array<E -> Void>;
 
 	public function new() {
 		state = Pending;
@@ -24,7 +25,8 @@ class PromiseWithErrorType<T, E> {
 	}
 
 	function resetQueue() {
-		taskQueue = [];
+		doneQueue = [];
+		failQueue = [];
 	}
 
 	function fixed() : Bool {
@@ -38,14 +40,10 @@ class PromiseWithErrorType<T, E> {
 	public function done(f : T -> Void) : P<T, E> {
 		switch (state) {
 		case Pending:
-			taskQueue.push(function() {
-				switch (state) {
-				case Resolved(result): f(result);
-				case _:
-				}
-			});
-		case Resolved(result): f(result);
-		case _:
+			doneQueue.push(f);
+		case Resolved(result):
+			f(result);
+		case Rejected(_):
 		}
 
 		return this;
@@ -54,14 +52,10 @@ class PromiseWithErrorType<T, E> {
 	public function fail(f : E -> Void) : P<T, E> {
 		switch (state) {
 		case Pending:
-			taskQueue.push(function() {
-				switch (state) {
-				case Rejected(error): f(error);
-				case _:
-				}
-			});
-		case Rejected(error): f(error);
-		case _:
+			failQueue.push(f);
+		case Resolved(_):
+		case Rejected(error):
+			f(error);
 		}
 
 		return this;
@@ -70,8 +64,10 @@ class PromiseWithErrorType<T, E> {
 	public function always(f : Void -> Void) : P<T, E> {
 		switch (state) {
 		case Pending:
-			taskQueue.push(f);
-		case Resolved(_) | Rejected(_): f();
+			doneQueue.push(function(_) f());
+			failQueue.push(function(_) f());
+		case Resolved(_) | Rejected(_):
+			f();
 		}
 
 		return this;
@@ -113,13 +109,20 @@ class DeferredWithErrorType<T, E> extends PromiseWithErrorType<T, E> {
 
 		state = s;
 
-		for (f in taskQueue)
-			f();
+		switch (state) {
+		case Pending:
+		case Resolved(result):
+			for (f in doneQueue)
+				f(result);
+		case Rejected(error):
+			for (f in failQueue)
+				f(error);
+		}
 
 		resetQueue();
 	}
  
-	public static function when2<A, B, C, D, E, Er>(
+	public static function when_<A, B, C, D, E, Er>(
 		 p1 : P<A, Er>,
 		 p2 : P<B, Er>,
 		?p3 : P<C, Er>,
